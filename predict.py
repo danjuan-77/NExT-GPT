@@ -214,7 +214,7 @@ def load_image(image_file):
 
 if __name__ == "__main__":
     predictor = Predictor()
-    predictor.setup(model_base=None, model_name="nextgpt-v1.5-7b", model_path="./checkpoints/nextgpt-v1.5-7b", load_8bit=False, load_4bit=False)
+    predictor.setup(model_base="./checkpoints/nextgpt-v1.5-7b", model_name="nextgpt-v1.5-7b", model_path="./checkpoints/nextgpt-v1.5-7b", load_8bit=False, load_4bit=False)
     # show me a beautiful landscape of 
     # descibe the bird in the image
     predictor.predict(image="./assets/bird_image.jpg", prompt="show me an image of a cute dog running on the grass")
