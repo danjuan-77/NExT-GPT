@@ -1,3 +1,4 @@
+from __future__ import annotations
 import torch
 
 from nextgpt.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
@@ -11,7 +12,6 @@ from dataclasses import dataclass, field
 from PIL import Image
 from transformers import StoppingCriteria, StoppingCriteriaList
 from typing import List
-from __future__ import annotations
 
 import requests
 from io import BytesIO
