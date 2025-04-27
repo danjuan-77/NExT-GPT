@@ -24,11 +24,11 @@ def load_config(args):
     base_configuration = load_base_config()
 
     # load stage config
-    # if args.get('mode'):
-    stage_configuration = load_model_config(args['stage'], args['mode'])
+    if args.get('mode'):
+        stage_configuration = load_model_config(args['stage'], args['mode'])
 
-    # update and append the stage config for base config
-    base_configuration.update(stage_configuration)
+        # update and append the stage config for base config
+        base_configuration.update(stage_configuration)
     configuration = base_configuration
     return configuration
 
