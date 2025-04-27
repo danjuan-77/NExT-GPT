@@ -44,22 +44,21 @@ def parse_args():
         help="Freeze language model parameters during inference"
     )
     # Generation hyperparameters
-    parser.add_argument(
-        "--top_p", type=float, default=0.01, help="Top-p sampling parameter"
-    )
-    parser.add_argument(
-        "--temperature", type=float, default=1.0, help="Sampling temperature"
-    )
-    parser.add_argument(
-        "--max_length", type=int, default=246, help="Maximum generated token length"
-    )
+    parser.add_argument("--top_p", type=float, default=0.01, help="Top-p sampling parameter")
+    parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature")
+    parser.add_argument("--max_length", type=int, default=246, help="Maximum generated token length")
     return parser.parse_args()
 
 
 def load_model(args):
-    # Load configuration (including stage and freeze_lm)
+    # Load base config and merge CLI args
     cfg = load_config(vars(args))
+    # Ensure 'stage' is provided for NextGPTModel
+    cfg['stage'] = args.stage
+
+    # Initialize model
     model = NextGPTModel(**cfg)
+    # Load delta checkpoint
     ckpt_file = os.path.join(args.nextgpt_ckpt_path, "pytorch_model.pt")
     state = torch.load(ckpt_file, map_location="cpu")
     model.load_state_dict(state, strict=False)
@@ -69,6 +68,7 @@ def load_model(args):
         for param in model.language_model.parameters():
             param.requires_grad = False
 
+    # Move to eval GPU
     model = model.eval().half().cuda()
     return model
 
@@ -116,7 +116,7 @@ def parse_response(outputs):
         elif 'aud' in item:
             for aud in item['aud']:
                 result["audios"].append(save_audio(aud))
-    # Dedupe and clean text
+    # Clean text
     result["text"] = [t.strip() for t in result["text"] if t.strip()]
     return result
 
@@ -130,7 +130,6 @@ def main():
         'prompt': args.text or "",
         'image_paths': [args.image] if args.image else [],
         'audio_paths': [args.audio] if args.audio else [],
-        # Include video path in video_paths if !use_video_audio, else both audio_paths and video_paths
         'video_paths': [args.video] if args.video else [],
         'top_p': args.top_p,
         'temperature': args.temperature,
@@ -147,9 +146,9 @@ def main():
         'generator': torch.Generator(device='cuda').manual_seed(13),
     }
 
-    # If using embedded audio in video, append video audio to audio_paths
+    # Handle video vs video+audio
     if args.video and args.use_video_audio:
-        inputs['audio_paths'] = inputs.get('audio_paths', []) + [args.video]
+        inputs['audio_paths'] += [args.video]
 
     # Perform generation
     raw_outputs = model.generate(inputs)
