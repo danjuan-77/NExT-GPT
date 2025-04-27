@@ -19,29 +19,56 @@ def parse_args():
     parser.add_argument("--image", type=str, default=None, help="Path to input image file")
     parser.add_argument("--audio", type=str, default=None, help="Path to input audio file (wav)")
     parser.add_argument("--video", type=str, default=None, help="Path to input video file")
-    # Optional video audio usage
-    parser.add_argument("--use_video_audio", action="store_true", help="Include video’s embedded audio during inference")
-    # Model settings
-    parser.add_argument("--model", type=str, default="nextgpt", help="Model name identifier")
-    parser.add_argument("--ckpt", required=True, help="Path to checkpoint directory containing pytorch_model.pt")
-    parser.add_argument("--freeze_lm", type=bool, default=True, help="Freeze language model parameters during inference")
+    # Optional flags
+    parser.add_argument(
+        "--use_video_audio",
+        action="store_true",
+        help="Include video’s embedded audio during inference"
+    )
+    # Model & checkpoint settings
+    parser.add_argument(
+        "--model", type=str, default="nextgpt", help="Model name identifier"
+    )
+    parser.add_argument(
+        "--nextgpt_ckpt_path",
+        required=True,
+        help="Path to checkpoint directory containing pytorch_model.pt"
+    )
+    parser.add_argument(
+        "--stage", type=int, default=3, help="Inference stage identifier"
+    )
+    parser.add_argument(
+        "--freeze_lm",
+        type=bool,
+        default=True,
+        help="Freeze language model parameters during inference"
+    )
     # Generation hyperparameters
-    parser.add_argument("--top_p", type=float, default=0.01, help="Top-p sampling parameter")
-    parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature")
-    parser.add_argument("--max_length", type=int, default=246, help="Maximum generated token length")
+    parser.add_argument(
+        "--top_p", type=float, default=0.01, help="Top-p sampling parameter"
+    )
+    parser.add_argument(
+        "--temperature", type=float, default=1.0, help="Sampling temperature"
+    )
+    parser.add_argument(
+        "--max_length", type=int, default=246, help="Maximum generated token length"
+    )
     return parser.parse_args()
 
 
 def load_model(args):
-    # Load configuration including freeze_lm flag
+    # Load configuration (including stage and freeze_lm)
     cfg = load_config(vars(args))
     model = NextGPTModel(**cfg)
-    ckpt_path = os.path.join(args.ckpt, "pytorch_model.pt")
-    state = torch.load(ckpt_path, map_location="cpu")
+    ckpt_file = os.path.join(args.nextgpt_ckpt_path, "pytorch_model.pt")
+    state = torch.load(ckpt_file, map_location="cpu")
     model.load_state_dict(state, strict=False)
+
+    # Optionally freeze language model weights
     if args.freeze_lm:
         for param in model.language_model.parameters():
             param.requires_grad = False
+
     model = model.eval().half().cuda()
     return model
 
@@ -89,7 +116,7 @@ def parse_response(outputs):
         elif 'aud' in item:
             for aud in item['aud']:
                 result["audios"].append(save_audio(aud))
-    # dedupe texts
+    # Dedupe and clean text
     result["text"] = [t.strip() for t in result["text"] if t.strip()]
     return result
 
@@ -103,7 +130,8 @@ def main():
         'prompt': args.text or "",
         'image_paths': [args.image] if args.image else [],
         'audio_paths': [args.audio] if args.audio else [],
-        'video_paths': [args.video] if args.video and args.use_video_audio else [],
+        # Include video path in video_paths if !use_video_audio, else both audio_paths and video_paths
+        'video_paths': [args.video] if args.video else [],
         'top_p': args.top_p,
         'temperature': args.temperature,
         'max_tgt_len': args.max_length,
@@ -119,10 +147,9 @@ def main():
         'generator': torch.Generator(device='cuda').manual_seed(13),
     }
 
-    # For video without embedded audio, omit audio_paths
-    if args.video and not args.use_video_audio:
-        inputs['video_paths'] = [args.video]
-        inputs['audio_paths'] = []
+    # If using embedded audio in video, append video audio to audio_paths
+    if args.video and args.use_video_audio:
+        inputs['audio_paths'] = inputs.get('audio_paths', []) + [args.video]
 
     # Perform generation
     raw_outputs = model.generate(inputs)
