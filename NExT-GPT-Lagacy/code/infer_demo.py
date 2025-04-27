@@ -54,6 +54,7 @@ def parse_args():
     # --- 模型与 checkpoint ---
     parser.add_argument('--nextgpt_ckpt_path', type=str, required=True)
     parser.add_argument('--stage', type=int, default=3)
+    parser.add_argument('--freeze_lm', type=bool, default=True)
     # --- 基础输入 ---
     parser.add_argument('--text', type=str, required=True)
     parser.add_argument('--image', type=str, default=None)
