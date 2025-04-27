@@ -94,16 +94,23 @@ def build_prompt(prompt: str, image_path: str, audio_path: str, video_path: str,
 def main():
     parser = argparse.ArgumentParser(description="NExT-GPT CLI for multimodal inference")
     parser.add_argument('--model', type=str, default='nextgpt')
-    parser.add_argument('--nextgpt_ckpt_path', type=str, required=True)
+    parser.add_argument('--nextgpt_ckpt_path', type=str, required=True,
+                        help='Path to model checkpoint directory')
+    # Stage parameter required by NextGPTModel
+    parser.add_argument('--stage', type=int, default=3,
+                        help='Model stage for generation (must match training)')
 
     # Inference mode control
-    parser.add_argument('--freeze_llm', action='store_true', help='Freeze LLM for inference only')
+    parser.add_argument('--freeze_llm', action='store_true',
+                        help='Freeze the LLM weights for inference only')
+    # Optionally use audio track from video
+    parser.add_argument('--use_video_audio', action='store_true', help='Include videos internal audio stream as audio input')
 
     # Inputs
     parser.add_argument('--prompt', type=str, default='', help='Text prompt')
-    parser.add_argument('--image_path', type=str, default=None)
-    parser.add_argument('--audio_path', type=str, default=None)
-    parser.add_argument('--video_path', type=str, default=None)
+    parser.add_argument('--image_path', type=str, default=None, help='Path to an input image')
+    parser.add_argument('--audio_path', type=str, default=None, help='Path to an input audio file')
+    parser.add_argument('--video_path', type=str, default=None, help='Path to an input video file')
 
     # Sampling options
     parser.add_argument('--top_p', type=float, default=0.01)
@@ -113,39 +120,41 @@ def main():
     args = vars(parser.parse_args())
     args.update(load_config(args))
 
-    # Load model
+    # Initialize and load model
     model = NextGPTModel(**args)
     ckpt = torch.load(os.path.join(args['nextgpt_ckpt_path'], 'pytorch_model.pt'), map_location='cpu')
     model.load_state_dict(ckpt, strict=False)
     model.eval().half().cuda()
 
-    # Build prompt with tags
+    # Build prompt (include video audio if requested)
+    audio_input = args['video_path'] if (args['use_video_audio'] and args['video_path']) else args['audio_path']
     prompt_text = build_prompt(
-        args['prompt'], args['image_path'], args['audio_path'], args['video_path']
+        args['prompt'], args['image_path'], audio_input, args['video_path'] if not args['use_video_audio'] else None
     )
 
     # Prepare generate inputs
     inputs = {
         'prompt': prompt_text,
         'image_paths': [args['image_path']] if args['image_path'] else [],
-        'audio_paths': [args['audio_path']] if args['audio_path'] else [],
-        'video_paths': [args['video_path']] if args['video_path'] else [],
+        'audio_paths': [audio_input] if audio_input else [],
+        'video_paths': [args['video_path']] if args['video_path'] and not args['use_video_audio'] else [],
         'top_p': args['top_p'],
         'temperature': args['temperature'],
         'max_tgt_len': args['max_tgt_len'],
+        'stage': args['stage'],
         'freeze_llm': args['freeze_llm'],
-        # additional settings
+        # additional settings from config
         'filter_value': args.get('filter_value'),
         'min_word_tokens': args.get('min_word_tokens'),
         'gen_scale_factor': args.get('gen_scale_factor'),
         'stops_id': args.get('stops_id'),
         'ENCOUNTERS': args.get('ENCOUNTERS'),
-        # image gen
+        # image generation
         'load_sd': args.get('load_sd'),
         'max_num_imgs': args.get('max_num_imgs'),
         'guidance_scale_for_img': args.get('guidance_scale_for_img'),
         'num_inference_steps_for_img': args.get('num_inference_steps_for_img'),
-        # video gen
+        # video generation
         'load_vd': args.get('load_vd'),
         'max_num_vids': args.get('max_num_vids'),
         'guidance_scale_for_vid': args.get('guidance_scale_for_vid'),
@@ -153,7 +162,7 @@ def main():
         'height': args.get('height'),
         'width': args.get('width'),
         'num_frames': args.get('num_frames'),
-        # audio gen
+        # audio generation
         'load_ad': args.get('load_ad'),
         'max_num_auds': args.get('max_num_auds'),
         'guidance_scale_for_aud': args.get('guidance_scale_for_aud'),
