@@ -1,180 +1,175 @@
-import argparse
 import os
+import argparse
 import tempfile
-import json
 import torch
-import scipy.io.wavfile
 import imageio
+import scipy.io
 from PIL import Image
 from model.anyToImageVideoAudio import NextGPTModel
 from config import load_config
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Command-line multimodal inference (text, image, audio, video) for NExT-GPT"
-    )
-    # Input modalities
-    parser.add_argument("--text", type=str, default=None, help="Input text prompt")
-    parser.add_argument("--image", type=str, default=None, help="Path to input image file")
-    parser.add_argument("--audio", type=str, default=None, help="Path to input audio file (wav)")
-    parser.add_argument("--video", type=str, default=None, help="Path to input video file")
-    # Optional flags
-    parser.add_argument(
-        "--use_video_audio",
-        action="store_true",
-        help="Include video’s embedded audio during inference"
-    )
-    # Model & checkpoint settings
-    parser.add_argument(
-        "--model", type=str, default="nextgpt", help="Model name identifier"
-    )
-    parser.add_argument(
-        "--nextgpt_ckpt_path",
-        required=True,
-        help="Path to checkpoint directory containing pytorch_model.pt"
-    )
-    parser.add_argument(
-        "--stage", type=int, default=3, help="Inference stage identifier"
-    )
-    parser.add_argument(
-        "--freeze_lm",
-        type=bool,
-        default=True,
-        help="Freeze language model parameters during inference"
-    )
-    # Generation hyperparameters
-    parser.add_argument("--top_p", type=float, default=0.01, help="Top-p sampling parameter")
-    parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature")
-    parser.add_argument("--max_length", type=int, default=246, help="Maximum generated token length")
-    return parser.parse_args()
-
-
-def load_model(args):
-    # Load base config and merge CLI args
-    cfg = load_config(vars(args))
-    # Ensure 'stage' is provided for NextGPTModel
-    cfg['stage'] = args.stage
-
-    # Initialize model
-    model = NextGPTModel(**cfg)
-    # Load delta checkpoint
-    ckpt_file = os.path.join(args.nextgpt_ckpt_path, "pytorch_model.pt")
-    state = torch.load(ckpt_file, map_location="cpu")
-    model.load_state_dict(state, strict=False)
-
-    # Optionally freeze language model weights
-    if args.freeze_lm:
-        for param in model.language_model.parameters():
-            param.requires_grad = False
-
-    # Move to eval GPU
-    model = model.eval().half().cuda()
-    return model
-
-
-def save_image(img):
-    os.makedirs("temp", exist_ok=True)
-    path = os.path.join("temp", f"{next(tempfile._get_candidate_names())}.jpg")
-    img.save(path)
+def save_image_to_local(image: Image.Image, output_dir: str) -> str:
+    """
+    Save a PIL Image to a temporary JPG file.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, next(tempfile._get_candidate_names()) + '.jpg')
+    image.save(path)
     return path
 
 
-def save_video(frames):
-    os.makedirs("temp", exist_ok=True)
-    path = os.path.join("temp", f"{next(tempfile._get_candidate_names())}.mp4")
-    writer = imageio.get_writer(path, fps=8)
-    for frame in frames:
-        writer.append_data(frame)
+def save_video_to_local(frames, output_dir: str, fps: int = 8) -> str:
+    """
+    Save a list of frames to an MP4 video file.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, next(tempfile._get_candidate_names()) + '.mp4')
+    writer = imageio.get_writer(path, format='FFMPEG', fps=fps)
+    for f in frames:
+        writer.append_data(f)
     writer.close()
     return path
 
 
-def save_audio(data, rate=16000):
-    os.makedirs("temp", exist_ok=True)
-    path = os.path.join("temp", f"{next(tempfile._get_candidate_names())}.wav")
-    scipy.io.wavfile.write(path, rate, data)
+def save_audio_to_local(audio, output_dir: str, sample_rate: int = 16000) -> str:
+    """
+    Save a 1D torch or numpy audio array as a WAV file.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, next(tempfile._get_candidate_names()) + '.wav')
+    data = audio.cpu().numpy() if hasattr(audio, 'cpu') else audio
+    scipy.io.wavfile.write(path, rate=sample_rate, data=data)
     return path
 
 
-def parse_response(outputs):
+def parse_response(model_outputs, output_dir: str):
     """
-    Parse model outputs: list of dicts with keys 'text', 'img', 'vid', 'aud'.
-    Returns JSON-serializable dict with text and file paths.
+    Handle model outputs, saving any media locally.
+    Returns:
+      - text: concatenated strings
+      - media_info: list of dicts with saved file paths
     """
-    result = {"text": [], "images": [], "videos": [], "audios": []}
-    for item in outputs:
-        if isinstance(item, str):
-            result["text"].append(item)
-        elif 'img' in item:
-            for img in item['img']:
-                if hasattr(img, 'save'):
-                    result["images"].append(save_image(img[0]))
-        elif 'vid' in item:
-            for frames in item['vid']:
-                result["videos"].append(save_video(frames))
-        elif 'aud' in item:
-            for aud in item['aud']:
-                result["audios"].append(save_audio(aud))
-    # Clean text
-    result["text"] = [t.strip() for t in result["text"] if t.strip()]
-    return result
+    texts = []
+    media = []
+    for out in model_outputs:
+        if isinstance(out, str):
+            texts.append(out)
+        elif isinstance(out, dict):
+            entry = {}
+            if 'img' in out:
+                entry['images'] = [save_image_to_local(img, output_dir) for img in out['img'] if isinstance(img, Image.Image)]
+            if 'vid' in out:
+                entry['videos'] = [save_video_to_local(vid, output_dir) for vid in out['vid']]
+            if 'aud' in out:
+                entry['audios'] = [save_audio_to_local(aud, output_dir) for aud in out['aud']]
+            media.append(entry)
+    return "\n".join(texts), media
+
+
+def build_prompt(prompt: str, image_path: str, audio_path: str, video_path: str, history=None) -> str:
+    """
+    Build the full prompt string with modality tags and optional chat history.
+    """
+    history = history or []
+    text = ''
+    if not history:
+        text += '### Human: '
+    else:
+        for i, (q, a) in enumerate(history):
+            sep = '###' if i == 0 else ''
+            text += f'{sep} Human: {q}\n### Assistant: {a}\n'
+        text += '### Human: '
+    if image_path:
+        text += f'<Image>{image_path}</Image> '
+    if audio_path:
+        text += f'<Audio>{audio_path}</Audio> '
+    if video_path:
+        text += f'<Video>{video_path}</Video> '
+    text += prompt
+    print('Constructed prompt_text:', text)
+    return text
 
 
 def main():
-    args = parse_args()
-    model = load_model(args)
+    parser = argparse.ArgumentParser(description="NExT-GPT CLI for multimodal inference")
+    parser.add_argument('--model', type=str, default='nextgpt')
+    parser.add_argument('--nextgpt_ckpt_path', type=str, required=True)
 
-    # Build generation inputs
+    # Inference mode control
+    parser.add_argument('--freeze_llm', action='store_true', help='Freeze LLM for inference only')
+
+    # Inputs
+    parser.add_argument('--prompt', type=str, default='', help='Text prompt')
+    parser.add_argument('--image_path', type=str, default=None)
+    parser.add_argument('--audio_path', type=str, default=None)
+    parser.add_argument('--video_path', type=str, default=None)
+
+    # Sampling options
+    parser.add_argument('--top_p', type=float, default=0.01)
+    parser.add_argument('--temperature', type=float, default=1.0)
+    parser.add_argument('--max_tgt_len', type=int, default=246)
+
+    args = vars(parser.parse_args())
+    args.update(load_config(args))
+
+    # Load model
+    model = NextGPTModel(**args)
+    ckpt = torch.load(os.path.join(args['nextgpt_ckpt_path'], 'pytorch_model.pt'), map_location='cpu')
+    model.load_state_dict(ckpt, strict=False)
+    model.eval().half().cuda()
+
+    # Build prompt with tags
+    prompt_text = build_prompt(
+        args['prompt'], args['image_path'], args['audio_path'], args['video_path']
+    )
+
+    # Prepare generate inputs
     inputs = {
-        'prompt': args.text or "",
-        'image_paths': [args.image] if args.image else [],
-        'audio_paths': [args.audio] if args.audio else [],
-        'video_paths': [args.video] if args.video else [],
-        'top_p': args.top_p,
-        'temperature': args.temperature,
-        'max_tgt_len': args.max_length,
-        'modality_embeds': None,
-        'filter_value': -float('Inf'),
-        'min_word_tokens': 10,
-        'gen_scale_factor': 4.0,
-        'max_num_imgs': 1,
-        'max_num_vids': 1,
-        'max_num_auds': 1,
-        'stops_id': [[835]],
-        'load_sd': True,
-        'generator': torch.Generator(device='cuda').manual_seed(13),
+        'prompt': prompt_text,
+        'image_paths': [args['image_path']] if args['image_path'] else [],
+        'audio_paths': [args['audio_path']] if args['audio_path'] else [],
+        'video_paths': [args['video_path']] if args['video_path'] else [],
+        'top_p': args['top_p'],
+        'temperature': args['temperature'],
+        'max_tgt_len': args['max_tgt_len'],
+        'freeze_llm': args['freeze_llm'],
+        # additional settings
+        'filter_value': args.get('filter_value'),
+        'min_word_tokens': args.get('min_word_tokens'),
+        'gen_scale_factor': args.get('gen_scale_factor'),
+        'stops_id': args.get('stops_id'),
+        'ENCOUNTERS': args.get('ENCOUNTERS'),
+        # image gen
+        'load_sd': args.get('load_sd'),
+        'max_num_imgs': args.get('max_num_imgs'),
+        'guidance_scale_for_img': args.get('guidance_scale_for_img'),
+        'num_inference_steps_for_img': args.get('num_inference_steps_for_img'),
+        # video gen
+        'load_vd': args.get('load_vd'),
+        'max_num_vids': args.get('max_num_vids'),
+        'guidance_scale_for_vid': args.get('guidance_scale_for_vid'),
+        'num_inference_steps_for_vid': args.get('num_inference_steps_for_vid'),
+        'height': args.get('height'),
+        'width': args.get('width'),
+        'num_frames': args.get('num_frames'),
+        # audio gen
+        'load_ad': args.get('load_ad'),
+        'max_num_auds': args.get('max_num_auds'),
+        'guidance_scale_for_aud': args.get('guidance_scale_for_aud'),
+        'num_inference_steps_for_aud': args.get('num_inference_steps_for_aud'),
+        'audio_length_in_s': args.get('audio_length_in_s'),
     }
 
-    # Handle video vs video+audio
-    if args.video and args.use_video_audio:
-        inputs['audio_paths'] += [args.video]
+    outputs = model.generate(inputs)
+    out_dir = os.path.join(os.getcwd(), 'outputs')
+    text, media = parse_response(outputs, out_dir)
 
-    # Perform generation
-    raw_outputs = model.generate(inputs)
-    parsed = parse_response(raw_outputs)
-
-    # Print results
-    print("\n=== Generated Text ===")
-    for line in parsed['text']:
-        print(line)
-    if parsed['images']:
-        print("\nSaved Images:")
-        for p in parsed['images']:
-            print(f" - {p}")
-    if parsed['videos']:
-        print("\nSaved Videos:")
-        for p in parsed['videos']:
-            print(f" - {p}")
-    if parsed['audios']:
-        print("\nSaved Audios:")
-        for p in parsed['audios']:
-            print(f" - {p}")
-
-    # JSON output
-    print("\n=== JSON Output ===")
-    print(json.dumps(parsed, indent=2))
-
+    print("=== Text Response ===")
+    print(text)
+    if media:
+        print("=== Media saved to ./outputs ===")
+        print(media)
 
 if __name__ == '__main__':
     main()
