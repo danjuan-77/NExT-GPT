@@ -72,6 +72,7 @@ def parse_args():
     parser.add_argument('--guidance_scale_for_vid', type=float, default=7.5)
     parser.add_argument('--num_inference_steps_for_vid', type=int, default=50)
     parser.add_argument('--max_num_vids', type=int, default=1)
+    parser.add_argument('--max_length', type=int, default=256)
     parser.add_argument('--height', type=int, default=320)
     parser.add_argument('--width', type=int, default=576)
     parser.add_argument('--num_frames', type=int, default=24)
@@ -106,6 +107,7 @@ def run_inference(model, args):
         'video_paths':      video_paths,
         'top_p':            args.top_p,
         'temperature':      args.temperature,
+        'max_tgt_len':      args.max_length,
         # 文本/多模态生成控制
         'filter_value':     args.filter_value,
         'min_word_tokens':  args.min_word_tokens,
