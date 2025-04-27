@@ -143,7 +143,48 @@ def main():
         history=None
     )
 
-    # Prepare generate inputs
+        # Prepare generate inputs
+    inputs = {
+        'prompt': prompt_text,
+        'image_paths': [args['image_path']] if args['image_path'] else [],
+        'audio_paths': [audio_input] if audio_input else [],
+        'video_paths': [args['video_path']] if args['video_path'] and not args['use_video_audio'] else [],
+        'top_p': args['top_p'],
+        'temperature': args['temperature'],
+        'max_tgt_len': args['max_tgt_len'],
+        'stage': args['stage'],
+        'freeze_lm': args['freeze_lm'],
+        # additional settings from config
+        'filter_value': args.get('filter_value'),
+        'min_word_tokens': args.get('min_word_tokens'),
+        'gen_scale_factor': args.get('gen_scale_factor'),
+        # Stops tokens (ensure provided)
+        'stops_id': args.get('stops_id'),
+        'ENCOUNTERS': args.get('ENCOUNTERS'),
+        # image generation settings
+        'load_sd': args.get('load_sd'),
+        'max_num_imgs': args.get('max_num_imgs'),
+        'guidance_scale_for_img': args.get('guidance_scale_for_img'),
+        'num_inference_steps_for_img': args.get('num_inference_steps_for_img'),
+        # video generation settings
+        'load_vd': args.get('load_vd'),
+        'max_num_vids': args.get('max_num_vids'),
+        'guidance_scale_for_vid': args.get('guidance_scale_for_vid'),
+        'num_inference_steps_for_vid': args.get('num_inference_steps_for_vid'),
+        'height': args.get('height'),
+        'width': args.get('width'),
+        'num_frames': args.get('num_frames'),
+        # audio generation settings
+        'load_ad': args.get('load_ad'),
+        'max_num_auds': args.get('max_num_auds'),
+        'guidance_scale_for_aud': args.get('guidance_scale_for_aud'),
+        'num_inference_steps_for_aud': args.get('num_inference_steps_for_aud'),
+        'audio_length_in_s': args.get('audio_length_in_s'),
+    }
+    # Fallback for stops_id if missing (prevents NoneType iteration error)
+    if not inputs.get('stops_id'):
+        inputs['stops_id'] = model.args.get('stops_id', [[835], [2277, 29937]])
+
     inputs = {
         'prompt': prompt_text,
         'image_paths': [args['image_path']] if args['image_path'] else [],
