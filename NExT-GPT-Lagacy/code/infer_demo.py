@@ -100,12 +100,11 @@ def main():
     parser.add_argument('--stage', type=int, default=3,
                         help='Model stage for generation (must match training)')
 
-    # Inference mode control: rename to match NextGPTModel's expected key
-    parser.add_argument('--freeze_lm', action='store_true',
+    # Inference mode control
+    parser.add_argument('--freeze_llm', action='store_true',
                         help='Freeze the LLM weights for inference only')
     # Optionally use audio track from video
-    parser.add_argument('--use_video_audio', action='store_true',
-                        help='Include video\'s internal audio stream as audio input')
+    parser.add_argument('--use_video_audio', action='store_true', help='Include videos internal audio stream as audio input')
 
     # Inputs
     parser.add_argument('--prompt', type=str, default='', help='Text prompt')
@@ -127,23 +126,13 @@ def main():
     model.load_state_dict(ckpt, strict=False)
     model.eval().half().cuda()
 
-    # Determine audio input: either standalone audio or extracted from video
-    audio_input = None
-    if args['use_video_audio'] and args['video_path']:
-        audio_input = args['video_path']
-    elif args['audio_path']:
-        audio_input = args['audio_path']
-
-    # Build prompt, excluding audio from video if --use_video_audio is set
+    # Build prompt (include video audio if requested)
+    audio_input = args['video_path'] if (args['use_video_audio'] and args['video_path']) else args['audio_path']
     prompt_text = build_prompt(
-        args['prompt'],
-        args['image_path'],
-        audio_input,
-        args['video_path'] if not args['use_video_audio'] else None,
-        history=None
+        args['prompt'], args['image_path'], audio_input, args['video_path'] if not args['use_video_audio'] else None
     )
 
-        # Prepare generate inputs
+    # Prepare generate inputs
     inputs = {
         'prompt': prompt_text,
         'image_paths': [args['image_path']] if args['image_path'] else [],
@@ -153,20 +142,19 @@ def main():
         'temperature': args['temperature'],
         'max_tgt_len': args['max_tgt_len'],
         'stage': args['stage'],
-        'freeze_lm': args['freeze_lm'],
+        'freeze_llm': args['freeze_llm'],
         # additional settings from config
         'filter_value': args.get('filter_value'),
         'min_word_tokens': args.get('min_word_tokens'),
         'gen_scale_factor': args.get('gen_scale_factor'),
-        # Stops tokens (ensure provided)
-        'stops_id': args.get('stops_id'),
+        'stops_id': [[835]],
         'ENCOUNTERS': args.get('ENCOUNTERS'),
-        # image generation settings
+        # image generation
         'load_sd': args.get('load_sd'),
         'max_num_imgs': args.get('max_num_imgs'),
         'guidance_scale_for_img': args.get('guidance_scale_for_img'),
         'num_inference_steps_for_img': args.get('num_inference_steps_for_img'),
-        # video generation settings
+        # video generation
         'load_vd': args.get('load_vd'),
         'max_num_vids': args.get('max_num_vids'),
         'guidance_scale_for_vid': args.get('guidance_scale_for_vid'),
@@ -174,47 +162,7 @@ def main():
         'height': args.get('height'),
         'width': args.get('width'),
         'num_frames': args.get('num_frames'),
-        # audio generation settings
-        'load_ad': args.get('load_ad'),
-        'max_num_auds': args.get('max_num_auds'),
-        'guidance_scale_for_aud': args.get('guidance_scale_for_aud'),
-        'num_inference_steps_for_aud': args.get('num_inference_steps_for_aud'),
-        'audio_length_in_s': args.get('audio_length_in_s'),
-    }
-    # Fallback for stops_id if missing (prevents NoneType iteration error)
-    if not inputs.get('stops_id'):
-        inputs['stops_id'] = model.args.get('stops_id', [[835], [2277, 29937]])
-
-    inputs = {
-        'prompt': prompt_text,
-        'image_paths': [args['image_path']] if args['image_path'] else [],
-        'audio_paths': [audio_input] if audio_input else [],
-        'video_paths': [args['video_path']] if args['video_path'] and not args['use_video_audio'] else [],
-        'top_p': args['top_p'],
-        'temperature': args['temperature'],
-        'max_tgt_len': args['max_tgt_len'],
-        'stage': args['stage'],
-        'freeze_lm': args['freeze_lm'],
-        # additional settings from config
-        'filter_value': args.get('filter_value'),
-        'min_word_tokens': args.get('min_word_tokens'),
-        'gen_scale_factor': args.get('gen_scale_factor'),
-        'stops_id': args.get('stops_id'),
-        'ENCOUNTERS': args.get('ENCOUNTERS'),
-        # image generation settings
-        'load_sd': args.get('load_sd'),
-        'max_num_imgs': args.get('max_num_imgs'),
-        'guidance_scale_for_img': args.get('guidance_scale_for_img'),
-        'num_inference_steps_for_img': args.get('num_inference_steps_for_img'),
-        # video generation settings
-        'load_vd': args.get('load_vd'),
-        'max_num_vids': args.get('max_num_vids'),
-        'guidance_scale_for_vid': args.get('guidance_scale_for_vid'),
-        'num_inference_steps_for_vid': args.get('num_inference_steps_for_vid'),
-        'height': args.get('height'),
-        'width': args.get('width'),
-        'num_frames': args.get('num_frames'),
-        # audio generation settings
+        # audio generation
         'load_ad': args.get('load_ad'),
         'max_num_auds': args.get('max_num_auds'),
         'guidance_scale_for_aud': args.get('guidance_scale_for_aud'),
