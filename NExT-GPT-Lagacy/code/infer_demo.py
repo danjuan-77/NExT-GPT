@@ -92,25 +92,35 @@ def build_prompt(prompt: str, image_path: str, audio_path: str, video_path: str,
 
 
 def main():
+    filter_value = -float('Inf')
+    min_word_tokens = 10
+    gen_scale_factor = 4.0
+    stops_id = [[835]]
+    ENCOUNTERS = 1
+    load_sd = True
+    generator = torch.Generator(device='cuda').manual_seed(13)
+
+    max_num_imgs = 1
+    max_num_vids = 1
+    height = 320
+    width = 576
+
+    max_num_auds = 1
+    max_length = 246
     parser = argparse.ArgumentParser(description="NExT-GPT CLI for multimodal inference")
     parser.add_argument('--model', type=str, default='nextgpt')
     parser.add_argument('--nextgpt_ckpt_path', type=str, required=True,
                         help='Path to model checkpoint directory')
-    # Stage parameter required by NextGPTModel
     parser.add_argument('--stage', type=int, default=3,
                         help='Model stage for generation (must match training)')
-
-    # Inference mode control: rename to match NextGPTModel's expected key
+    # Inference control
     parser.add_argument('--freeze_lm', action='store_true',
                         help='Freeze the LLM weights for inference only')
-    # Optionally use audio track from video
-    parser.add_argument('--use_video_audio', action='store_true',
-                        help='Include video\'s internal audio stream as audio input')
 
     # Inputs
     parser.add_argument('--prompt', type=str, default='', help='Text prompt')
     parser.add_argument('--image_path', type=str, default=None, help='Path to an input image')
-    parser.add_argument('--audio_path', type=str, default=None, help='Path to an input audio file')
+    parser.add_argument('--audio_path', type=str, default=None, help='Path to an input audio file (wav)')
     parser.add_argument('--video_path', type=str, default=None, help='Path to an input video file')
 
     # Sampling options
@@ -123,57 +133,46 @@ def main():
 
     # Initialize and load model
     model = NextGPTModel(**args)
-    ckpt = torch.load(os.path.join(args['nextgpt_ckpt_path'], 'pytorch_model.pt'), map_location='cpu')
+    ckpt = torch.load(os.path.join(args['nextgpt_ckpt_path'], 'pytorch_model.pt'), map_location='cuda')
     model.load_state_dict(ckpt, strict=False)
     model.eval().half().cuda()
 
-    # Determine audio input: either standalone audio or extracted from video
-    audio_input = None
-    if args['use_video_audio'] and args['video_path']:
-        audio_input = args['video_path']
-    elif args['audio_path']:
-        audio_input = args['audio_path']
-
-    # Build prompt, excluding audio from video if --use_video_audio is set
+    # Build prompt including all provided modalities
     prompt_text = build_prompt(
-        args['prompt'],
-        args['image_path'],
-        audio_input,
-        args['video_path'] if not args['use_video_audio'] else None,
-        history=None
+        args['prompt'], args['image_path'], args['audio_path'], args['video_path']
     )
 
-    # Prepare generate inputs
+    # Prepare generate inputs dictionary
     inputs = {
         'prompt': prompt_text,
         'image_paths': [args['image_path']] if args['image_path'] else [],
-        'audio_paths': [audio_input] if audio_input else [],
-        'video_paths': [args['video_path']] if args['video_path'] and not args['use_video_audio'] else [],
+        'audio_paths': [args['audio_path']] if args['audio_path'] else [],
+        'video_paths': [args['video_path']] if args['video_path'] else [],
         'top_p': args['top_p'],
         'temperature': args['temperature'],
-        'max_tgt_len': args['max_tgt_len'],
+        'max_tgt_len': max_length,
         'stage': args['stage'],
         'freeze_lm': args['freeze_lm'],
-        # additional settings from config
-        'filter_value': args.get('filter_value'),
-        'min_word_tokens': args.get('min_word_tokens'),
-        'gen_scale_factor': args.get('gen_scale_factor'),
-        'stops_id': [[835]],
-        'ENCOUNTERS': args.get('ENCOUNTERS'),
-        # image generation settings
-        'load_sd': args.get('load_sd'),
-        'max_num_imgs': args.get('max_num_imgs'),
+        'filter_value': filter_value,
+        'min_word_tokens': min_word_tokens,
+        'gen_scale_factor': gen_scale_factor,
+        'stops_id': stops_id,
+        'ENCOUNTERS': ENCOUNTERS,
+        'generator': generator,
+        # image gen settings
+        'load_sd': load_sd,
+        'max_num_imgs': max_num_imgs,
         'guidance_scale_for_img': args.get('guidance_scale_for_img'),
         'num_inference_steps_for_img': args.get('num_inference_steps_for_img'),
-        # video generation settings
+        # video gen settings
         'load_vd': args.get('load_vd'),
-        'max_num_vids': args.get('max_num_vids'),
+        'max_num_vids': max_num_vids,
         'guidance_scale_for_vid': args.get('guidance_scale_for_vid'),
         'num_inference_steps_for_vid': args.get('num_inference_steps_for_vid'),
         'height': args.get('height'),
         'width': args.get('width'),
         'num_frames': args.get('num_frames'),
-        # audio generation settings
+        # audio gen settings
         'load_ad': args.get('load_ad'),
         'max_num_auds': args.get('max_num_auds'),
         'guidance_scale_for_aud': args.get('guidance_scale_for_aud'),
@@ -181,6 +180,7 @@ def main():
         'audio_length_in_s': args.get('audio_length_in_s'),
     }
 
+    # Generate
     outputs = model.generate(inputs)
     out_dir = os.path.join(os.getcwd(), 'outputs')
     text, media = parse_response(outputs, out_dir)

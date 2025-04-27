@@ -33,6 +33,6 @@ python infer_demo.py \
 python infer_demo.py \
   --nextgpt_ckpt_path $CKPT \
   --prompt "Describe the video with its audio." \
+  --audio_path ./asset/4405327307.wav \
   --video_path ./asset/4405327307.mp4 \
-  --use_video_audio \
   --freeze_lm
