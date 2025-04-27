@@ -14,17 +14,30 @@ import imageio
 
 def load_model(args):
     """
-    加载并初始化 NextGPTModel。
+    加载并初始化 NextGPTModel，确保 cfg 中包含所有命令行参数和 YAML 配置。
     """
-    cfg = load_config(vars(args))
+    # 1. 以命令行参数为基础
+    cfg = vars(args).copy()
+
+    # 2. 读取并合并 YAML 中的默认配置
+    yaml_cfg = load_config(cfg)
+    cfg.update(yaml_cfg)
+
+    # 3. 确保 stage 和 nextgpt_ckpt_path 在 cfg 中
+    # （通常已经包含，但下面做一次显式赋值以防万一）
+    cfg['stage'] = args.stage
+    cfg['nextgpt_ckpt_path'] = args.nextgpt_ckpt_path
+
+    # 4. 创建模型
     model = NextGPTModel(**cfg)
+
+    # 5. 加载 delta checkpoint
     delta = torch.load(
         os.path.join(args.nextgpt_ckpt_path, 'pytorch_model.pt'),
-        map_location='cpu'
+        map_location='cuda'
     )
     model.load_state_dict(delta, strict=False)
-    model.eval().half().cuda()
-    return model
+    return model.eval().half().cuda()
 
 def extract_audio_from_video(video_path, output_wav):
     """
@@ -126,6 +139,5 @@ def run_inference(model, args):
 
 if __name__ == '__main__':
     args  = parse_args()
-    cfg   = load_config(vars(args))
-    model = NextGPTModel(**cfg).eval().half().cuda()
+    model = load_model(args)
     run_inference(model, args)
