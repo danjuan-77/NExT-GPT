@@ -301,7 +301,7 @@ def parse_response(model_outputs, output_dir: str):
     return "\n".join(texts), media
 
 
-def build_prompt(prompt: str, image_path: str, audio_path: str, video_path: str, history=None) -> str:
+def build_prompt(prompt: str, image_path: str=None, audio_path: str=None, video_path: str=None, history=None) -> str:
     """
     Build the full prompt string with modality tags and optional chat history.
     """
