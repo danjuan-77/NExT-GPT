@@ -365,6 +365,12 @@ def main():
     args = vars(parser.parse_args())
     args.update(load_config(args))
     
+    # Initialize and load model
+    model = NextGPTModel(**args)
+    ckpt = torch.load(os.path.join(args['nextgpt_ckpt_path'], 'pytorch_model.pt'), map_location='cuda')
+    model.load_state_dict(ckpt, strict=False)
+    model.eval().half().cuda()
+    
     
     task_path = args['task_path']
     task_name = f"L{task_path.rsplit('/', 1)[0][-1]}_{task_path.rsplit('/', 1)[-1]}"
@@ -400,11 +406,7 @@ def main():
     
 
 
-    # Initialize and load model
-    model = NextGPTModel(**args)
-    ckpt = torch.load(os.path.join(args['nextgpt_ckpt_path'], 'pytorch_model.pt'), map_location='cuda')
-    model.load_state_dict(ckpt, strict=False)
-    model.eval().half().cuda()
+
 
     
     predictions = []
