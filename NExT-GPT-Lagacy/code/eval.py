@@ -428,58 +428,58 @@ def main():
         )
         print(f">>> text input=:{text}")
         
-        try:
+        # try:
             
-           # Build prompt including all provided modalities
-            prompt_text = build_prompt(
-                text, image_list, audio_list, video
-            )
-            # Prepare generate inputs dictionary
-            inputs = {
-                'prompt': prompt_text,
-                'image_paths': image_list if image_list else [],
-                'audio_paths': audio_list if audio_list else [],
-                'video_paths': video if video else [],
-                'top_p': args['top_p'],
-                'temperature': args['temperature'],
-                'max_tgt_len': max_length,
-                'stage': args['stage'],
-                'freeze_lm': args['freeze_lm'],
-                'filter_value': filter_value,
-                'min_word_tokens': min_word_tokens,
-                'gen_scale_factor': gen_scale_factor,
-                'stops_id': stops_id,
-                'ENCOUNTERS': ENCOUNTERS,
-                'generator': generator,
-                # image gen settings
-                'load_sd': load_sd,
-                'max_num_imgs': max_num_imgs,
-                'guidance_scale_for_img': args.get('guidance_scale_for_img'),
-                'num_inference_steps_for_img': args.get('num_inference_steps_for_img'),
-                # video gen settings
-                'load_vd': args.get('load_vd'),
-                'max_num_vids': max_num_vids,
-                'guidance_scale_for_vid': args.get('guidance_scale_for_vid'),
-                'num_inference_steps_for_vid': args.get('num_inference_steps_for_vid'),
-                'height': args.get('height'),
-                'width': args.get('width'),
-                'num_frames': args.get('num_frames'),
-                # audio gen settings
-                'load_ad': args.get('load_ad'),
-                'max_num_auds': args.get('max_num_auds'),
-                'guidance_scale_for_aud': args.get('guidance_scale_for_aud'),
-                'num_inference_steps_for_aud': args.get('num_inference_steps_for_aud'),
-                'audio_length_in_s': args.get('audio_length_in_s'),
-            }
+        # Build prompt including all provided modalities
+        prompt_text = build_prompt(
+            text, image_list, audio_list, video
+        )
+        # Prepare generate inputs dictionary
+        inputs = {
+            'prompt': prompt_text,
+            'image_paths': image_list if image_list else [],
+            'audio_paths': audio_list if audio_list else [],
+            'video_paths': video if video else [],
+            'top_p': args['top_p'],
+            'temperature': args['temperature'],
+            'max_tgt_len': max_length,
+            'stage': args['stage'],
+            'freeze_lm': args['freeze_lm'],
+            'filter_value': filter_value,
+            'min_word_tokens': min_word_tokens,
+            'gen_scale_factor': gen_scale_factor,
+            'stops_id': stops_id,
+            'ENCOUNTERS': ENCOUNTERS,
+            'generator': generator,
+            # image gen settings
+            'load_sd': load_sd,
+            'max_num_imgs': max_num_imgs,
+            'guidance_scale_for_img': args.get('guidance_scale_for_img'),
+            'num_inference_steps_for_img': args.get('num_inference_steps_for_img'),
+            # video gen settings
+            'load_vd': args.get('load_vd'),
+            'max_num_vids': max_num_vids,
+            'guidance_scale_for_vid': args.get('guidance_scale_for_vid'),
+            'num_inference_steps_for_vid': args.get('num_inference_steps_for_vid'),
+            'height': args.get('height'),
+            'width': args.get('width'),
+            'num_frames': args.get('num_frames'),
+            # audio gen settings
+            'load_ad': args.get('load_ad'),
+            'max_num_auds': args.get('max_num_auds'),
+            'guidance_scale_for_aud': args.get('guidance_scale_for_aud'),
+            'num_inference_steps_for_aud': args.get('num_inference_steps_for_aud'),
+            'audio_length_in_s': args.get('audio_length_in_s'),
+        }
 
-            # Generate
-            outputs = model.generate(inputs)
-            out_dir = os.path.join(os.getcwd(), 'outputs')
-            predict_text, media = parse_response(outputs, out_dir)
-        except Exception as e:
-            # 捕获任何异常，并把完整 traceback 当作 output
-            tb = traceback.format_exc()
-            output = f"Error during inference:\n{tb}"
+        # Generate
+        outputs = model.generate(inputs)
+        out_dir = os.path.join(os.getcwd(), 'outputs')
+        predict_text, media = parse_response(outputs, out_dir)
+        # except Exception as e:
+        #     # 捕获任何异常，并把完整 traceback 当作 output
+        #     tb = traceback.format_exc()
+        #     predict_text = f"Error during inference:\n{tb}"
         
         pred_record = {
             "task": _task,
