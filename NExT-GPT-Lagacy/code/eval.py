@@ -17,6 +17,7 @@ from moviepy.editor import (
     concatenate_audioclips,
     ImageClip,
     concatenate_videoclips,
+    VideoFileClip,
 )
 tempfile.tempdir = "/share/nlp/tuwenming/projects/HAVIB/tmp"
 maic_cls_list = ['bus', 'hair-dryer', 'pipa', 'man', 'ambulance', 'razor', 'harp', 'tabla', 'bass', 'handpan', 
@@ -243,6 +244,16 @@ def get_real_input(d: dict) -> str:
     # 去掉多余的句点
     parts = [p for p in (prompt, options, question) if p]
     return " ".join(parts)
+
+def extract_audio_from_video(video_path: str) -> str:
+    """Extract audio track from a video file and write it to a temp WAV."""
+    clip = VideoFileClip(video_path)
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    out_path = tmp.name
+    clip.audio.write_audiofile(out_path, fps=16000, logger=None)
+    clip.reader.close(); clip.audio.reader.close_proc()
+    return out_path
+
 def save_image_to_local(image: Image.Image, output_dir: str) -> str:
     """
     Save a PIL Image to a temporary JPG file.
@@ -251,7 +262,6 @@ def save_image_to_local(image: Image.Image, output_dir: str) -> str:
     path = os.path.join(output_dir, next(tempfile._get_candidate_names()) + '.jpg')
     image.save(path)
     return path
-
 
 def save_video_to_local(frames, output_dir: str, fps: int = 8) -> str:
     """
@@ -454,7 +464,8 @@ def main():
             # Case 5: image_list + audio_list
             elif image_list and audio_list and not video:
                 video_path = images_and_audio_to_video(image_list, audio_list, fps=1)
-                prompt_text = build_prompt(text, audio_path=video_path, video_path=video_path)
+                audio_path = extract_audio_from_video(video_path)
+                prompt_text = build_prompt(text, audio_path=audio_path, video_path=video_path)
 
             # Case 6: audio_list + video (same as Case 4)
             elif audio_list and video:
