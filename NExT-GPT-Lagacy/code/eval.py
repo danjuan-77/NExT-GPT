@@ -364,9 +364,9 @@ def main():
 
     args = vars(parser.parse_args())
     args.update(load_config(args))
-    task_path = args.task_path
-
     
+    
+    task_path = args['task_path']
     task_name = f"L{task_path.rsplit('/', 1)[0][-1]}_{task_path.rsplit('/', 1)[-1]}"
     model_name = "nextgpt"
     save_prediction_json = f'/share/nlp/tuwenming/projects/HAVIB/eval/user_outputs/{model_name}/tasks/{task_name}.json'
