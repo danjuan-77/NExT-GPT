@@ -294,12 +294,15 @@ def parse_response(model_outputs, output_dir: str):
     return "\n".join(texts), media
 
 
-def build_prompt(prompt: str, image_path: str, audio_path: str, video_path: str, history=None) -> str:
+def build_prompt(prompt: str, image_path=None, audio_path=None, video_path=None, history=None) -> str:
     """
     Build the full prompt string with modality tags and optional chat history.
+    Supports single path or list of paths for each modality.
     """
     history = history or []
     text = ''
+
+    # Build history context
     if not history:
         text += '### Human: '
     else:
@@ -307,12 +310,22 @@ def build_prompt(prompt: str, image_path: str, audio_path: str, video_path: str,
             sep = '###' if i == 0 else ''
             text += f'{sep} Human: {q}\n### Assistant: {a}\n'
         text += '### Human: '
-    if image_path:
-        text += f'<Image>{image_path}</Image> '
-    if audio_path:
-        text += f'<Audio>{audio_path}</Audio> '
-    if video_path:
-        text += f'<Video>{video_path}</Video> '
+
+    # Normalize to list
+    def normalize(x):
+        if not x:
+            return []
+        return x if isinstance(x, list) else [x]
+
+    for img in normalize(image_path):
+        text += f'<Image>{img}</Image> '
+
+    for aud in normalize(audio_path):
+        text += f'<Audio>{aud}</Audio> '
+
+    for vid in normalize(video_path):
+        text += f'<Video>{vid}</Video> '
+
     text += prompt
     print('Constructed prompt_text:', text)
     return text
