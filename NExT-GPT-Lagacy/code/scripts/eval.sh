@@ -28,4 +28,4 @@ python eval.py --nextgpt_ckpt_path $CKPT --task_path /share/nlp/tuwenming/projec
 python eval.py --nextgpt_ckpt_path $CKPT --task_path /share/nlp/tuwenming/projects/HAVIB/data/levels/level_5/AVLG --freeze_lm
 python eval.py --nextgpt_ckpt_path $CKPT --task_path /share/nlp/tuwenming/projects/HAVIB/data/levels/level_5/AVQA --freeze_lm
 
-# nohup scripts/eval.sh > /share/nlp/tuwenming/projects/HAVIB/logs/eval_nextgpt_gpu0_$(date +%Y%m%d%H%M%S).log 2>&1 &
+# nohup bash scripts/eval.sh > /share/nlp/tuwenming/projects/HAVIB/logs/eval_nextgpt_gpu0_$(date +%Y%m%d%H%M%S).log 2>&1 &
