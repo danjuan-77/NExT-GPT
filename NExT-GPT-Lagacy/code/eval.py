@@ -459,10 +459,7 @@ def main():
         # Case 6: audio_list + video (same as Case 4)
         elif audio_list and video:
             prompt_text = build_prompt(text, audio_path=audio_list[0], video_path=video)    
-        # Build prompt including all provided modalities
-        prompt_text = build_prompt(
-            text, image_list, audio_list, video
-        )
+
         # Prepare generate inputs dictionary
         inputs = {
             'prompt': prompt_text,
