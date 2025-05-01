@@ -7,3 +7,13 @@ python eval.py \
     --nextgpt_ckpt_path $CKPT \
     --task_path /share/nlp/tuwenming/projects/HAVIB/data/levels/level_1/LAQA \
     --freeze_lm
+
+python eval.py \
+    --nextgpt_ckpt_path $CKPT \
+    --task_path /share/nlp/tuwenming/projects/HAVIB/data/levels/level_1/LIQA \
+    --freeze_lm
+
+python eval.py \
+    --nextgpt_ckpt_path $CKPT \
+    --task_path /share/nlp/tuwenming/projects/HAVIB/data/levels/level_1/LVQA \
+    --freeze_lm

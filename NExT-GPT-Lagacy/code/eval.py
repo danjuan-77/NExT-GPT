@@ -11,6 +11,13 @@ import tempfile
 import traceback
 from tqdm import tqdm
 import json
+from typing import List, Optional
+from moviepy.editor import (
+    AudioFileClip,
+    concatenate_audioclips,
+    ImageClip,
+    concatenate_videoclips,
+)
 tempfile.tempdir = "/share/nlp/tuwenming/projects/HAVIB/tmp"
 maic_cls_list = ['bus', 'hair-dryer', 'pipa', 'man', 'ambulance', 'razor', 'harp', 'tabla', 'bass', 'handpan', 
         'girl', 'sitar', 'car', 'lion', 'guitar', 'vacuum-cleaner', 'cat', 'mower', 'helicopter', 'boy', 'drum', 
@@ -150,53 +157,53 @@ havib_constants = {
         'avqa_options_list_is': ['yes', 'no', 'not sure'],
     },
 }
-# def concat_audio(audio_paths: List[str]) -> str:
-#     """
-#     Concatenate multiple audio files into one WAV file.
-#     Returns the path to the temp WAV file.
-#     """
-#     clips = [AudioFileClip(p) for p in audio_paths]
-#     final = concatenate_audioclips(clips)
-#     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-#     out_path = tmp.name
-#     final.write_audiofile(out_path, fps=16000, logger=None)
-#     return out_path
+def concat_audio(audio_paths: List[str]) -> str:
+    """
+    Concatenate multiple audio files into one WAV file.
+    Returns the path to the temp WAV file.
+    """
+    clips = [AudioFileClip(p) for p in audio_paths]
+    final = concatenate_audioclips(clips)
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    out_path = tmp.name
+    final.write_audiofile(out_path, fps=16000, logger=None)
+    return out_path
 
-# def images_to_video(image_paths: List[str], duration: float, fps: int = 1) -> str:
-#     """
-#     Turn a list of images into a silent video of total `duration` seconds.
-#     Each image is shown for `duration / len(image_paths)` seconds.
-#     Returns the path to the temp MP4 file.
-#     """
-#     single_dur = duration / len(image_paths)
-#     clips = [ImageClip(p).set_duration(single_dur) for p in image_paths]
-#     video = concatenate_videoclips(clips, method="compose")
-#     tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-#     out_path = tmp.name
-#     video.write_videofile(out_path, fps=fps, codec="libx264", audio=False, logger=None)
-#     return out_path
+def images_to_video(image_paths: List[str], duration: float, fps: int = 1) -> str:
+    """
+    Turn a list of images into a silent video of total `duration` seconds.
+    Each image is shown for `duration / len(image_paths)` seconds.
+    Returns the path to the temp MP4 file.
+    """
+    single_dur = duration / len(image_paths)
+    clips = [ImageClip(p).set_duration(single_dur) for p in image_paths]
+    video = concatenate_videoclips(clips, method="compose")
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    out_path = tmp.name
+    video.write_videofile(out_path, fps=fps, codec="libx264", audio=False, logger=None)
+    return out_path
 
-# def images_and_audio_to_video(image_paths: List[str], audio_paths: List[str], fps: int = 1) -> str:
-#     """
-#     Concatenate audio_paths into one audio, then build a video from image_paths
-#     that matches the audio duration, and merge them.
-#     Returns the path to the temp MP4 file.
-#     """
-#     # 1) build the concatenated audio
-#     audio_path = concat_audio(audio_paths)
-#     audio_clip = AudioFileClip(audio_path)
-#     # 2) build video from images matching audio duration
-#     duration = audio_clip.duration
-#     vid_path = images_to_video(image_paths, duration, fps=fps)
-#     # 3) attach audio to video
-#     video_clip = AudioFileClip(audio_path)  # re-open to avoid MoviePy caching issues
-#     from moviepy.editor import VideoFileClip
-#     base_vid = VideoFileClip(vid_path)
-#     final = base_vid.set_audio(audio_clip)
-#     tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-#     out_path = tmp.name
-#     final.write_videofile(out_path, fps=fps, codec="libx264", logger=None)
-#     return out_path 
+def images_and_audio_to_video(image_paths: List[str], audio_paths: List[str], fps: int = 1) -> str:
+    """
+    Concatenate audio_paths into one audio, then build a video from image_paths
+    that matches the audio duration, and merge them.
+    Returns the path to the temp MP4 file.
+    """
+    # 1) build the concatenated audio
+    audio_path = concat_audio(audio_paths)
+    audio_clip = AudioFileClip(audio_path)
+    # 2) build video from images matching audio duration
+    duration = audio_clip.duration
+    vid_path = images_to_video(image_paths, duration, fps=fps)
+    # 3) attach audio to video
+    video_clip = AudioFileClip(audio_path)  # re-open to avoid MoviePy caching issues
+    from moviepy.editor import VideoFileClip
+    base_vid = VideoFileClip(vid_path)
+    final = base_vid.set_audio(audio_clip)
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    out_path = tmp.name
+    final.write_videofile(out_path, fps=fps, codec="libx264", logger=None)
+    return out_path 
     
 def get_real_path(task_path: str, src_path: str) -> str:
     """传入taskpath和一些文件的path，构造文件的真实path
@@ -294,15 +301,12 @@ def parse_response(model_outputs, output_dir: str):
     return "\n".join(texts), media
 
 
-def build_prompt(prompt: str, image_path=None, audio_path=None, video_path=None, history=None) -> str:
+def build_prompt(prompt: str, image_path: str, audio_path: str, video_path: str, history=None) -> str:
     """
     Build the full prompt string with modality tags and optional chat history.
-    Supports single path or list of paths for each modality.
     """
     history = history or []
     text = ''
-
-    # Build history context
     if not history:
         text += '### Human: '
     else:
@@ -310,22 +314,12 @@ def build_prompt(prompt: str, image_path=None, audio_path=None, video_path=None,
             sep = '###' if i == 0 else ''
             text += f'{sep} Human: {q}\n### Assistant: {a}\n'
         text += '### Human: '
-
-    # Normalize to list
-    def normalize(x):
-        if not x:
-            return []
-        return x if isinstance(x, list) else [x]
-
-    for img in normalize(image_path):
-        text += f'<Image>{img}</Image> '
-
-    for aud in normalize(audio_path):
-        text += f'<Audio>{aud}</Audio> '
-
-    for vid in normalize(video_path):
-        text += f'<Video>{vid}</Video> '
-
+    if image_path:
+        text += f'<Image>{image_path}</Image> '
+    if audio_path:
+        text += f'<Audio>{audio_path}</Audio> '
+    if video_path:
+        text += f'<Video>{video_path}</Video> '
     text += prompt
     print('Constructed prompt_text:', text)
     return text
@@ -414,14 +408,6 @@ def main():
 
     print(">>>Finished parse raw data...")
 
-
-
-    
-
-
-
-
-    
     predictions = []
     
     for data in tqdm(parsed_data):
@@ -444,7 +430,35 @@ def main():
         print(f">>> text input=:{text}")
         
         # try:
-            
+        # Case 1: only audio_list
+        if audio_list and not image_list and not video:
+            if len(audio_list) > 1:
+                audio_path = concat_audio(audio_list)
+            else:
+                audio_path = audio_list[0]
+            prompt_text =  build_prompt(text, audio_path=audio_path)
+
+        # Case 2: only one image
+        elif image_list and not audio_list and not video:
+            image_path = image_list[0]
+            prompt_text =  build_prompt(text, image_path=image_path)
+
+        # Case 3: only video
+        elif video and not audio_list and not image_list:
+            prompt_text = build_prompt(text, video_path=video)
+
+        # Case 4: video + audio_list
+        elif video and audio_list:
+            prompt_text = build_prompt(text, audio_path=audio_list[0], video_path=video)
+
+        # Case 5: image_list + audio_list
+        elif image_list and audio_list and not video:
+            video_path = images_and_audio_to_video(image_list, audio_list, fps=1)
+            prompt_text = build_prompt(text, audio_path=video_path, video_path=video_path)
+
+        # Case 6: audio_list + video (same as Case 4)
+        elif audio_list and video:
+            prompt_text = build_prompt(text, audio_path=audio_list[0], video_path=video)    
         # Build prompt including all provided modalities
         prompt_text = build_prompt(
             text, image_list, audio_list, video
